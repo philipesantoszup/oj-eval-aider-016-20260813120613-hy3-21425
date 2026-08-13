@@ -97,6 +97,51 @@ class BPTree {
         return {nullptr, Key{}};
     }
 
+    Key firstKey(Node* node) {
+        while (!node->leaf) node = node->children[0];
+        return node->keys[0];
+    }
+
+    bool removeRec(Node* node, const Key& key) {
+        if (node->leaf) {
+            auto it = lower_bound(node->keys.begin(), node->keys.end(), key);
+            if (it != node->keys.end() && *it == key) {
+                node->keys.erase(it);
+            }
+            return node->keys.empty();
+        }
+        int idx = 0;
+        while (idx < node->keys.size() && key >= node->keys[idx]) idx++;
+        bool underflow = removeRec(node->children[idx], key);
+        if (underflow) {
+            Node* child = node->children[idx];
+            if (!child->leaf && child->children.size() == 1) {
+                // replace child with its only child
+                Node* grandchild = child->children[0];
+                delete child;
+                node->children[idx] = grandchild;
+                return false;
+            }
+            // child is empty leaf, remove it
+            if (child->leaf && idx > 0) {
+                node->children[idx-1]->next = child->next;
+            }
+            delete child;
+            node->children.erase(node->children.begin() + idx);
+            if (idx > 0) {
+                node->keys.erase(node->keys.begin() + idx - 1);
+            } else {
+                if (!node->keys.empty()) node->keys.erase(node->keys.begin());
+            }
+            return node->children.size() < 2;
+        } else {
+            if (idx > 0) {
+                node->keys[idx-1] = firstKey(node->children[idx]);
+            }
+            return false;
+        }
+    }
+
 public:
     BPTree() { root = new Node(true); }
 
@@ -112,10 +157,11 @@ public:
     }
 
     void remove(const Key& key) {
-        Node* leaf = findLeaf(root, key);
-        auto it = lower_bound(leaf->keys.begin(), leaf->keys.end(), key);
-        if (it != leaf->keys.end() && *it == key) {
-            leaf->keys.erase(it);
+        removeRec(root, key);
+        if (!root->leaf && root->children.size() == 1) {
+            Node* old = root;
+            root = root->children[0];
+            delete old;
         }
     }
 
@@ -128,9 +174,16 @@ public:
             node = node->children[idx];
         }
         vector<int> vals;
-        for (const auto& k : node->keys) {
-            if (k.str == str) vals.push_back(k.val);
+        while (node) {
+            bool stop = false;
+            for (const auto& k : node->keys) {
+                if (k.str == str) vals.push_back(k.val);
+                else if (k.str > str) { stop = true; break; }
+            }
+            if (stop) break;
+            node = node->next;
         }
+        sort(vals.begin(), vals.end());
         if (vals.empty()) {
             out << "null";
         } else {
@@ -222,7 +275,18 @@ public:
                 }
             }
         }
-        root = nodes[rootId];
+        vector<Key> allKeys;
+        function<void(Node*)> collectKeys = [&](Node* n) {
+            if (n->leaf) {
+                for (auto& k : n->keys) allKeys.push_back(k);
+            } else {
+                for (auto c : n->children) collectKeys(c);
+            }
+        };
+        collectKeys(nodes[rootId]);
+        // rebuild fresh tree to guarantee consistent structure and links
+        root = new Node(true);
+        for (auto& k : allKeys) insert(k);
     }
 };
 
