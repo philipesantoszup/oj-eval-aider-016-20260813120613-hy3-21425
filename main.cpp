@@ -5,7 +5,6 @@
 #include <algorithm>
 #include <cstring>
 #include <cstdint>
-#include <cstdint>
 #include <climits>
 #include <functional>
 
@@ -20,6 +19,9 @@ struct Key {
     }
     bool operator==(const Key& o) const {
         return str == o.str && val == o.val;
+    }
+    bool operator>=(const Key& o) const {
+        return !(*this < o);
     }
 };
 
