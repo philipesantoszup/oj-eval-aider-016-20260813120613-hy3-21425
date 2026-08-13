@@ -97,49 +97,18 @@ class BPTree {
         return {nullptr, Key{}};
     }
 
-    Key firstKey(Node* node) {
-        while (!node->leaf) node = node->children[0];
-        return node->keys[0];
-    }
-
     bool removeRec(Node* node, const Key& key) {
         if (node->leaf) {
             auto it = lower_bound(node->keys.begin(), node->keys.end(), key);
             if (it != node->keys.end() && *it == key) {
                 node->keys.erase(it);
             }
-            return node->keys.empty();
+            return false;
         }
         int idx = 0;
         while (idx < node->keys.size() && key >= node->keys[idx]) idx++;
-        bool underflow = removeRec(node->children[idx], key);
-        if (underflow) {
-            Node* child = node->children[idx];
-            if (!child->leaf && child->children.size() == 1) {
-                // replace child with its only child
-                Node* grandchild = child->children[0];
-                delete child;
-                node->children[idx] = grandchild;
-                return false;
-            }
-            // child is empty leaf, remove it
-            if (child->leaf && idx > 0) {
-                node->children[idx-1]->next = child->next;
-            }
-            delete child;
-            node->children.erase(node->children.begin() + idx);
-            if (idx > 0) {
-                node->keys.erase(node->keys.begin() + idx - 1);
-            } else {
-                if (!node->keys.empty()) node->keys.erase(node->keys.begin());
-            }
-            return node->children.size() < 2;
-        } else {
-            if (idx > 0) {
-                node->keys[idx-1] = firstKey(node->children[idx]);
-            }
-            return false;
-        }
+        removeRec(node->children[idx], key);
+        return false;
     }
 
 public:
@@ -158,11 +127,6 @@ public:
 
     void remove(const Key& key) {
         removeRec(root, key);
-        if (!root->leaf && root->children.size() == 1) {
-            Node* old = root;
-            root = root->children[0];
-            delete old;
-        }
     }
 
     void find(const string& str, ostream& out) {
